@@ -9,8 +9,8 @@ from node import Node, random_msg
 
 
 class Vehicle(Node):
-    def __init__(self, index, pos, vel, tx_power, rx_power, road):
-        super().__init__(pos, tx_power, rx_power, True)
+    def __init__(self, index, pos, vel, tx_power, gain, road):
+        super().__init__(pos, tx_power, gain, True)
         self.id = index
         self.name = f"Vehicle{self.id}"
         self.pos = pos
@@ -40,9 +40,10 @@ class Vehicle(Node):
         elif self.pos[1] > self.road[1][1]:
             self.pos[1] = self.road[1][1]
 
+    @property
+    def state(self):
+        return [self.latency['crypt'], self.latency['transmit'], self.gain, self.safe_level]
+
 
 if __name__ == '__main__':
-    v = Vehicle(1, [1, 2], 5, 0, 0)
-    msg = None
-    secrets = v.encrypt_msg(msg if msg is not None else random_msg())
-    v.decrypt_msg(secrets)
+    pass

@@ -5,7 +5,9 @@ from Crypto.Cipher import AES
 
 # https://pycryptodome.readthedocs.io/en/latest/src/cipher/aes.html AES all 11 modes
 
-SUPPORTED_MODES = range(1, 13)
+SUPPORTED_KEY_LENGTHS = [16, 24, 32]  # bytes
+SUPPORTED_WORK_MODES = ['ECB', 'CBC', 'CTR', 'OFB', 'CFB']  # classic, only crypt not authenticate
+
 
 def add_to_32(value):
     while len(value) % 32 != 0:
@@ -34,11 +36,12 @@ def cut_value(org_str):
 
 
 def AES_encrypt(org_str, key, mode=AES.MODE_ECB):
-    # 初始化加密器
-    # mode = AES.MODE_CBC
-    mode = random.choice(SUPPORTED_MODES)
+    mode_dict = {'ECB': AES.MODE_ECB, 'CBC': AES.MODE_CBC, 'CTR': AES.MODE_CTR, 'OFB': AES.MODE_OFB, 'CFB': AES.MODE_CFB, }
+    mode = random.choice(SUPPORTED_WORK_MODES)
     print(f"current encrypt mode = {mode}")
-    aes = AES.new(key, mode)
+    iv = random.randbytes(16)
+    nonce = random.randbytes(16)
+    aes = AES.new(key, mode, iv=iv, nonce=nonce)
     # 先进行aes加密
     encrypt_aes = aes.encrypt(cut_value(org_str))
     # 用base64转成字符串形式

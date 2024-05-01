@@ -1,23 +1,29 @@
-import os
 import numpy as np
-import random
+
 from vehicle import Vehicle
 from base_station import BaseStation
 from node import random_msg
 from AES import *
+from attacker import Attacker
 
-import math
+# TRANSMIT_POWER = [3, 2, 1]  # w
+CHANNEL_GAIN = [3e-5, 1e-5, 1e-6, 2e-7, 1e-7]
+
+
+# NOISE_POWER = [1e-14, 1e-13]  # pw, 这里是平方后的值了
 
 
 class IoV(object):
-    def __init__(self, vehicle_num, bs_num, args):
+    def __init__(self, vehicle_num, bs_num, attacker_num, args):
         self.args = args
+
         self.vehicle_num = vehicle_num
         self.base_station_num = bs_num
+        self.attacker_num = attacker_num
 
         self.bandwidth = 20 * int(1e6)  # Hz, 20MHz
         # max for vehicle = 26dBm, max for base station = 29dBm
-        self.tx_power = {'vehicle': 23, 'base_station': 25}  # dBm
+        self.tx_power = {'vehicle': 26, 'base_station': 29}  # dBm
         self.rx_power = self.tx_power
         self.noise_power = -114  # dBm
 
@@ -28,12 +34,15 @@ class IoV(object):
             Vehicle(index=i, pos=[random.uniform(self.road[0][0], self.road[0][1]),
                                   random.uniform(self.road[1][0], self.road[1][1])],
                     vel=random.uniform(0, self.max_vehicle_velocity),
-                    tx_power=self.tx_power['vehicle'], rx_power=self.rx_power['vehicle'], road=self.road)
+                    tx_power=random.randint(self.tx_power['vehicle'] - 5, self.tx_power['vehicle']),
+                    gain=random.choice(CHANNEL_GAIN), road=self.road)
             for i in range(vehicle_num)]
         self.base_stations = [
             BaseStation(index=i, pos=[random.uniform(self.road[0][0], self.road[0][1]), random.choice(self.road[1])],
                         tx_power=self.tx_power['base_station'],
                         rx_power=self.rx_power['base_station']) for i in range(bs_num)]
+        self.attackers = [Attacker(args) for _ in range(attacker_num)]
+
         self.msgs = {}
         self.keys = {}
 
@@ -46,22 +55,31 @@ class IoV(object):
 
     def send(self, ready2send=None):
         sending_seq = ready2send if ready2send is not None else self.vehicles
+
         tx_latency = 0
         encoding_latency = 0
-        for node in sending_seq:
+
+        msg = None
+        key_length = None
+        work_mode = None
+
+        for node in sending_seq:  # 这里只用 index 0
             msg = random_msg()
+            key_length = node.key_length
+            work_mode = node.work_mode
             secrets = node.encrypt_msg(msg)
             self.keys[node.name] = node.key
             self.msgs[node.name] = secrets
             # 加密时延
             raw_msg_length = get_string_bit_length(msg)
-            encoding_latency_v = node.crypt_latency(raw_msg_length, 'encrypt')
+            encoding_latency_v = node.crypt_latency(raw_msg_length)
             encoding_latency = max(encoding_latency, encoding_latency_v)
             # 传输时延
             secrets_length = get_string_bit_length(secrets)
             tx_latency_v = node.trans_latency(secrets_length, self.bandwidth, self.noise_power)
             tx_latency = max(tx_latency, tx_latency_v)
-        return encoding_latency, tx_latency
+
+        return encoding_latency, tx_latency, msg, key_length, work_mode
 
     def receive(self, ready2receive=None):
         receiving_seq = ready2receive if ready2receive is not None else self.base_stations
@@ -87,11 +105,34 @@ class IoV(object):
 
     def step(self):
         encoding_latency, tx_latency = self.send()
+        self.attacker.attack(self.msgs, self.keys, self.vehicles)
         decoding_latency = self.receive()
         print(f"Encoding latency: {encoding_latency}")
         print(f"Transmit latency: {tx_latency}")
         print(f"Decoding latency: {decoding_latency}")
         print(f"Total latency: {encoding_latency + tx_latency + decoding_latency}")
+
+    @property
+    def state(self):
+        s = []
+        for vehicle in self.vehicles:
+            s.append(vehicle.state)
+        return np.array(s)
+
+    def compute_reward(self):
+        w1 = 1
+        w2 = 1
+
+        safe_levels = [vehicle.safe_level for vehicle in self.vehicles]
+        avg_safe_level = np.mean(safe_levels)
+
+        atk_succ_prob = [attacker.atk_succ_prob for attacker in self.attackers]
+        avg_atk_succ_prob = np.mean(atk_succ_prob)
+
+        lates = [vehicle.latency['transmit'] + vehicle.latency['crypt'] for vehicle in self.vehicles]
+        latency = np.max(lates)
+
+        return w1 * avg_safe_level * (1 - avg_atk_succ_prob) - w2 * latency, latency, avg_safe_level
 
 
 if __name__ == '__main__':

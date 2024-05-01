@@ -35,9 +35,9 @@ def cut_value(org_str):
     return all_bytes
 
 
-def AES_encrypt(org_str, key, mode=AES.MODE_ECB):
+def AES_encrypt(org_str, key, mode):
     mode_dict = {'ECB': AES.MODE_ECB, 'CBC': AES.MODE_CBC, 'CTR': AES.MODE_CTR, 'OFB': AES.MODE_OFB, 'CFB': AES.MODE_CFB, }
-    mode = random.choice(SUPPORTED_WORK_MODES)
+    work_mode = mode_dict[mode]
     print(f"current encrypt mode = {mode}")
     iv = random.randbytes(16)
     nonce = random.randbytes(16)
@@ -46,7 +46,8 @@ def AES_encrypt(org_str, key, mode=AES.MODE_ECB):
     encrypt_aes = aes.encrypt(cut_value(org_str))
     # 用base64转成字符串形式
     encrypted_text = str(base64.encodebytes(encrypt_aes), encoding='utf-8')  # 执行加密并转码返回bytes
-    print(encrypted_text)
+    # print(encrypted_text)
+    print("Encryption done")
     return encrypted_text
 
 

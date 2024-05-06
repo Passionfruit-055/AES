@@ -20,20 +20,23 @@ class Attacker(object):
         self.decrypt_prob = random.choice(self.decrypt_probs)
         self.atk_succ_prob = 1
 
-    def attack(self, msg, key_length, work_mode):
+        self.recent_atk = False
+
+    def attack(self, key_length, work_mode):
         key = self.key_length.index(key_length)
         mode = self.work_mode.index(work_mode)
 
-        atk_prob = self.launch_atk_prob[key]
-        decrypt_prob = self.decrypt_prob[mode]
+        atk_prob = self.launch_atk_probs[key]
+        decrypt_prob = self.decrypt_probs[mode]
 
         self.atk_succ_prob = atk_prob * decrypt_prob
 
+        self.recent_atk = False
         if random.random() < self.atk_succ_prob:
             self.atk_succ_times += 1
-            return True
-        else:
-            return False
+            self.recent_atk = True
+
+        return self.recent_atk
 
     @property
     def atk_succ_rate(self):

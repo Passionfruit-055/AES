@@ -74,9 +74,12 @@ class Node(object):
         return self.latency['crypt']
 
     def set_crypt(self, action):
-        length = action / len(self.possible_key_length)
+        length = action // len(self.possible_work_mode)
         length = self.possible_key_length[int(length)]
         self._set_key_length(length)
-        mode = action % len(self.possible_key_length)
+
+        mode = action % len(self.possible_work_mode)
         mode = self.possible_work_mode[int(mode)]
         self._set_work_mode(mode)
+
+        print(f"Set key length to {length}, work mode to {mode}")

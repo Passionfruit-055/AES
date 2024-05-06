@@ -38,17 +38,29 @@ def cut_value(org_str):
 def AES_encrypt(org_str, key, mode):
     mode_dict = {'ECB': AES.MODE_ECB, 'CBC': AES.MODE_CBC, 'CTR': AES.MODE_CTR, 'OFB': AES.MODE_OFB, 'CFB': AES.MODE_CFB, }
     work_mode = mode_dict[mode]
-    print(f"current encrypt mode = {mode}")
+    print(f"\nCurrent encrypt mode : {mode}")
     iv = random.randbytes(16)
     nonce = random.randbytes(16)
-    aes = AES.new(key, mode, iv=iv, nonce=nonce)
+    # if mode == 'ECB':
+    #     aes = AES.new(key, mode)
+    # elif mode == 'CTR':
+    #     aes = AES.new(key, mode,  nonce=nonce)
+    # else:
+    #     aes = AES.new(key, mode, iv=iv)
+    aes = AES.new(key, work_mode)
     # 先进行aes加密
     encrypt_aes = aes.encrypt(cut_value(org_str))
     # 用base64转成字符串形式
     encrypted_text = str(base64.encodebytes(encrypt_aes), encoding='utf-8')  # 执行加密并转码返回bytes
-    # print(encrypted_text)
-    print("Encryption done")
-    return encrypted_text
+    if mode not in ['ECB', 'CTR']:
+        iv = base64.b64encode(aes.iv).decode('utf-8')
+        print(f"iv:{iv}")
+    elif mode == 'CTR':
+        nonce = base64.b64encode(aes.nonce).decode('utf-8')
+        print(f"nonce:{nonce}")
+    # print(f"Encrypted text:{encrypted_text}")
+    # print("Encryption done")
+    return encrypted_text, iv, nonce
 
 
 def AES_decrypt(secret_str, key):

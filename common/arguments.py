@@ -7,7 +7,7 @@ def get_common_args():
     # parser.add_argument('--', type=, default=, help=)
     parser.add_argument('--random_msg', type=bool, default=True, help='whether to generate random msg')
     parser.add_argument('--random_key_length', type=bool, default=True, help='whether to generate random key')
-    parser.add_argument('--seed', type=int, default=123, help='random seed')
+    parser.add_argument('--seed', type=int, default=10, help='random seed')
     parser.add_argument('--n_vehicles', type=int, default=1, help='numbers of vehicles')
     parser.add_argument('--n_base_stations', type=int, default=1, help='numbers of base stations')
     parser.add_argument('--n_attackers', type=int, default=1, help='numbers of attackers')
@@ -30,7 +30,7 @@ def get_common_args():
     # coma+g2anet, central_v+g2anet, reinforce+g2anet, maven
     parser.add_argument('--alg', type=str, default='random', help='the algorithm to train the agent')
     parser.add_argument('--n_steps', type=int, default=50, help='total time steps')  # 500000
-    parser.add_argument('--n_episodes', type=int, default=800, help='the number of episodes before once training')
+    parser.add_argument('--n_episodes', type=int, default=200, help='the number of episodes before once training')
     parser.add_argument('--last_action', type=bool, default=False,
                         help='whether to use the last action to choose action')
     parser.add_argument('--reuse_network', type=bool, default=True, help='whether to use one network for all agents')

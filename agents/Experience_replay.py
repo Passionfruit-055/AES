@@ -19,10 +19,10 @@ class ReplayBuffer(object):
             self.buffer.append(experience)
 
     def sample_batch(self, batch_size):
-        if self.count < batch_size:
-            minibatch = random.sample(self.buffer, self.count)
-        else:
-            minibatch = random.sample(self.buffer, batch_size)
+        # if self.count < batch_size:
+        minibatch = random.sample(self.buffer, min(self.count, batch_size))
+        # else:
+            # minibatch = random.sample(self.buffer, batch_size)
         state = [d[0] for d in minibatch]
         action = [d[1] for d in minibatch]
         reward = [d[2] for d in minibatch]

@@ -2,6 +2,9 @@ import random
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+import os
+os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 from IoV import *
 from common.arguments import *
@@ -35,21 +38,24 @@ def main():
 
     rewards_s = []
     atk_succ_times = []
-    latencies = []  # 认为每通信 500 次，为一个 episode
+    latencies_s = []  # 认为每通信 500 次，为一个 episode
 
     for episode in range(args.n_episodes):
         rewards = []
         latencies = []
         atk_succ_time = 0
+        next_state = None
         for t in range(args.n_steps):
 
-            state = env.state
-
+            state = env.state if t == 0 else next_state
+            # # random
+            # actions = random.choice(range(len(SUPPORTED_KEY_LENGTHS) * len(SUPPORTED_WORK_MODES)))
             actions, _ = agent.choose_action(state)
             for vehicle in env.vehicles:
                 vehicle.set_crypt(actions)
 
-            env.step()
+            atk_s_time = env.step()
+            atk_succ_time += atk_s_time
 
             reward, latency, safe_level = env.compute_reward()
             rewards.append(reward)
@@ -62,14 +68,18 @@ def main():
 
         rewards_s.append(sum(rewards))
         atk_succ_times.append(atk_succ_time)
-        latencies.append(sum(latencies))
+        latencies_s.append(sum(latencies))
 
-    for data, ylabel in zip([rewards_s, atk_succ_times, latencies], ['Reward', 'Attack Success Times', 'Latency']):
+    for data, ylabel in zip([rewards_s, atk_succ_times, latencies_s], ['Reward', 'Attack Success Times', 'Latency (ms)']):
         plt.figure()
         plt.plot(data)
         plt.xlabel('Episode')
         plt.ylabel(ylabel)
+        plt.tight_layout()
+        plt.savefig(f'./results/{ylabel.lower()}.png')
         plt.show()
+        plt.close()
+    plt.close()
 
 
 if __name__ == '__main__':

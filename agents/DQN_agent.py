@@ -60,21 +60,21 @@ class DQN(object):  # DQN类进行强化学习
         return action, Qvals
 
     def store_transition(self, state, action, reward, state_, warning=0):
-        if warning == 0:
-            self.memory.add(state, action, reward, state_)
-        else:
-            self.risk_memory.add(state, action, reward, state_)
+        # if warning == 0:
+        self.memory.add(state, action, reward, state_)
+        # else:
+        #     self.risk_memory.add(state, action, reward, state_)
 
     def sample_memory(self):
         # safe_batch
         state, action, reward, new_state = self.memory.sample_batch(self.batch_size)
-        # risk_batch
-        r_state, r_action, r_reward, r_new_state = self.risk_memory.sample_batch(self.batch_size)
-        # mini_batch
-        state.extend(r_state)
-        action.extend(r_action)
-        reward.extend(r_reward)
-        new_state.extend(r_new_state)
+        # # risk_batch
+        # r_state, r_action, r_reward, r_new_state = self.risk_memory.sample_batch(self.batch_size)
+        # # mini_batch
+        # state.extend(r_state)
+        # action.extend(r_action)
+        # reward.extend(r_reward)
+        # new_state.extend(r_new_state)
 
         states = T.tensor(state, dtype=T.float).to(self.q_eval.device)
         rewards = T.tensor(reward, dtype=T.float).to(self.q_eval.device)
@@ -106,7 +106,8 @@ class DQN(object):  # DQN类进行强化学习
         # experience replay
         q_eval = self.q_eval.forward(states)
         q_next = self.q_next.forward(states_)
-        max_q_value = T.max(q_next, dim=1)[0].detach()
+        # max_q_value = T.max(q_next, dim=1)[0].detach()
+        max_q_value = T.max(q_next, dim=-1)[0].detach()
         q_target = rewards.view(max_q_value.size()) + self.gamma * max_q_value
         q_eval_replaced = q_eval.clone()
         q_eval_replaced[T.arange(q_eval.shape[0]), actions] = q_target

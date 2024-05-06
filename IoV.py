@@ -67,7 +67,7 @@ class IoV(object):
             msg = random_msg()
             key_length = node.key_length
             work_mode = node.work_mode
-            secrets = node.encrypt_msg(msg)
+            secrets, iv, nonce = node.encrypt_msg(msg)
             self.keys[node.name] = node.key
             self.msgs[node.name] = secrets
             # 加密时延
@@ -104,19 +104,26 @@ class IoV(object):
             vehicle.set_key_length(length)
 
     def step(self):
-        encoding_latency, tx_latency = self.send()
-        self.attacker.attack(self.msgs, self.keys, self.vehicles)
-        decoding_latency = self.receive()
+        encoding_latency, tx_latency, msg, key_length, work_mode = self.send()
+        atk_succ_time = 0
+        for attacker in self.attackers:
+            if attacker.attack(key_length, work_mode):
+                atk_succ_time += 1
+        # decoding_latency = self.receive()
         print(f"Encoding latency: {encoding_latency}")
         print(f"Transmit latency: {tx_latency}")
-        print(f"Decoding latency: {decoding_latency}")
-        print(f"Total latency: {encoding_latency + tx_latency + decoding_latency}")
+        # print(f"Decoding latency: {decoding_latency}")
+        print(f"Total latency: {(encoding_latency * 2 + tx_latency * 2) * 1e3} ms")
+        return atk_succ_time
 
     @property
     def state(self):
         s = []
         for vehicle in self.vehicles:
-            s.append(vehicle.state)
+            if len(s) == 0:
+                s = vehicle.state
+            else:
+                s.append(vehicle.state)
         return np.array(s)
 
     def compute_reward(self):
@@ -132,7 +139,7 @@ class IoV(object):
         lates = [vehicle.latency['transmit'] + vehicle.latency['crypt'] for vehicle in self.vehicles]
         latency = np.max(lates)
 
-        return w1 * avg_safe_level * (1 - avg_atk_succ_prob) - w2 * latency, latency, avg_safe_level
+        return w1 * avg_safe_level * (1 - avg_atk_succ_prob) - w2 * latency * 1e6, latency * 1e3, avg_safe_level
 
 
 if __name__ == '__main__':

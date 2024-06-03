@@ -5,7 +5,8 @@ import base64
 
 
 def random_msg():
-    msgs = {'control': 100, 'traffic': 50, 'video': 200, 'road': 300}
+    # msgs = {'control': 1000, 'traffic': 1000, 'video': 2000, 'road': 2000}
+    msgs = {'control': 1000, 'traffic': 1100, 'video': 1200, 'road': 1300}
     kind = random.choice(list(msgs.keys()))
     random_bytes = os.urandom(msgs[kind])
     base64_encoded = base64.b64encode(random_bytes)

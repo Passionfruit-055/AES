@@ -31,14 +31,15 @@ class IoV(object):
         self.max_vehicle_velocity = 60  # km/h
 
         self.vehicles = [
-            Vehicle(index=i, pos=[random.uniform(self.road[0][0], self.road[0][1]),
-                                  random.uniform(self.road[1][0], self.road[1][1])],
-                    vel=random.uniform(0, self.max_vehicle_velocity),
+            Vehicle(index=i + 1, pos=[random.uniform(self.road[0][0], self.road[0][1]),
+                                      random.uniform(self.road[1][0], self.road[1][1])],
+                    vel=[random.uniform(0, self.max_vehicle_velocity), random.uniform(0, self.max_vehicle_velocity)],
                     tx_power=random.randint(self.tx_power['vehicle'] - 5, self.tx_power['vehicle']),
                     gain=random.choice(CHANNEL_GAIN), road=self.road)
             for i in range(vehicle_num)]
         self.base_stations = [
-            BaseStation(index=i, pos=[random.uniform(self.road[0][0], self.road[0][1]), random.choice(self.road[1])],
+            BaseStation(index=i + 1,
+                        pos=[random.uniform(self.road[0][0], self.road[0][1]), random.choice(self.road[1])],
                         tx_power=self.tx_power['base_station'],
                         rx_power=self.rx_power['base_station']) for i in range(bs_num)]
         self.attackers = [Attacker(args) for _ in range(attacker_num)]
@@ -51,13 +52,16 @@ class IoV(object):
         self.keys = {}
 
         for vehicle in self.vehicles:
-            vehicle.move()
+            vehicle.reset()
 
-    def send(self, ready2send=None):
+        for attacker in self.attackers:
+            attacker.reset()
+
+    def send(self, timestep, ready2send=None):
         sending_seq = ready2send if ready2send is not None else self.vehicles
 
-        tx_latency = 0
-        encoding_latency = 0
+        trans_latency = 0
+        crypt_latency = 0
 
         msg = None
         key_length = None
@@ -70,16 +74,16 @@ class IoV(object):
             secrets, iv, nonce = node.encrypt_msg(msg)
             self.keys[node.name] = node.key
             self.msgs[node.name] = secrets
-            # 加密时延
+            # 加解密时延
             raw_msg_length = get_string_bit_length(msg)
-            encoding_latency_v = node.crypt_latency(raw_msg_length)
-            encoding_latency = max(encoding_latency, encoding_latency_v)
+            encoding_latency_v = node.crypt_latency(raw_msg_length, timestep)
+            crypt_latency = max(crypt_latency, encoding_latency_v)
             # 传输时延
             secrets_length = get_string_bit_length(secrets)
-            tx_latency_v = node.trans_latency(secrets_length, self.bandwidth, self.noise_power)
-            tx_latency = max(tx_latency, tx_latency_v)
+            tx_latency_v = node.trans_latency(secrets_length, self.bandwidth, self.noise_power, timestep)
+            trans_latency = max(trans_latency, tx_latency_v)
 
-        return encoding_latency, tx_latency, msg, key_length, work_mode
+        return crypt_latency, trans_latency, msg, key_length, work_mode
 
     def receive(self, ready2receive=None):
         receiving_seq = ready2receive if ready2receive is not None else self.base_stations
@@ -103,45 +107,53 @@ class IoV(object):
         for vehicle, length in zip(self.vehicles, lengths):
             vehicle.set_key_length(length)
 
-    def step(self):
-        encoding_latency, tx_latency, msg, key_length, work_mode = self.send()
-        atk_succ_time = 0
+    def step(self, timestep):
+        for vehicle in self.vehicles:
+            vehicle.move()
+
+        encoding_latency, tx_latency, msg, key_length, work_mode = self.send(timestep)
+        atk_succ_probs = []
+        malicious_msg_nums = []
         for attacker in self.attackers:
-            if attacker.attack(key_length, work_mode):
-                atk_succ_time += 1
+            atk_succ_prob, malicious_msg_num = attacker.attack(key_length, work_mode)
+            malicious_msg_nums.append(malicious_msg_num)
+            atk_succ_probs.append(atk_succ_prob)
         # decoding_latency = self.receive()
-        print(f"Encoding latency: {encoding_latency}")
-        print(f"Transmit latency: {tx_latency}")
-        # print(f"Decoding latency: {decoding_latency}")
-        print(f"Total latency: {(encoding_latency * 2 + tx_latency * 2) * 1e3} ms")
-        return atk_succ_time
+        # print(f"Encoding latency: {encoding_latency}")
+        # print(f"Transmit latency: {tx_latency}")
+        # print(f"Total latency: {(encoding_latency * 2 + tx_latency * 2) * 1e3} ms")
+        return np.mean(atk_succ_probs), np.mean(malicious_msg_nums)
 
     @property
     def state(self):
         s = []
-        for vehicle in self.vehicles:
-            if len(s) == 0:
-                s = vehicle.state
-            else:
-                s.append(vehicle.state)
-        return np.array(s)
+        one_hots = np.eye(self.vehicle_num).tolist()
+        for vehicle, one_hot in zip(self.vehicles, one_hots):
+            s.append(vehicle.state + one_hot)
+        return s
 
     def compute_reward(self):
-        w1 = 1
-        w2 = 1
+        rewards = []
+        for vehicle in self.vehicles:
+            rewards.append(vehicle.reward)
 
-        safe_levels = [vehicle.safe_level for vehicle in self.vehicles]
-        avg_safe_level = np.mean(safe_levels)
+        defense_levels = [vehicle.defense_level for vehicle in self.vehicles]
+        avg_defense_level = np.mean(defense_levels)
 
-        atk_succ_prob = [attacker.atk_succ_prob for attacker in self.attackers]
-        avg_atk_succ_prob = np.mean(atk_succ_prob)
+        trans_lates = [vehicle.latency['transmit'] for vehicle in self.vehicles]
+        trans_latency = np.max(trans_lates)
 
-        lates = [vehicle.latency['transmit'] + vehicle.latency['crypt'] for vehicle in self.vehicles]
-        latency = np.max(lates)
+        encrypt_lates = [vehicle.latency['crypt'] for vehicle in self.vehicles]
+        encrypt_latency = np.max(encrypt_lates)
 
-        return w1 * avg_safe_level * (1 - avg_atk_succ_prob) - w2 * latency * 1e6, latency * 1e3, avg_safe_level
+        latency = trans_latency + encrypt_latency
+
+        return np.mean(rewards), rewards, latency, avg_defense_level
 
 
 if __name__ == '__main__':
-    env = IoV(5, 5, None)
-    env.step()
+    from common.arguments import get_common_args
+    args = get_common_args()
+    env = IoV(2, 1, 1, args)
+    s_tate = env.state
+    print(s_tate)

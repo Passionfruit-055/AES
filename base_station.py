@@ -7,7 +7,7 @@ from node import *
 
 class BaseStation(Node):
     def __init__(self, index, pos, tx_power, rx_power):
-        super().__init__(pos, tx_power, rx_power, False)
+        super().__init__(pos, tx_power, rx_power, False, index)
         self.id = index
         self.name = f"BaseStation{self.id}"
         self.pos = pos
